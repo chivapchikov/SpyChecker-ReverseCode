@@ -41,6 +41,7 @@ fn main() -> std::io::Result<()> {
         
                 let count_const_pool = u16::from_be_bytes([bin[8], bin[9]]) - 1; // важные для работы файла данные  пул констанст
             
+
                 let mut cursor = 10; // cursor хранит текущий индекс байта 
                 // после 10 байта начинается таблица констант где элементы имеют разный размер
 
@@ -49,90 +50,130 @@ fn main() -> std::io::Result<()> {
     // name_and_type_index — какой метод искать (имя + типы аргументов) [13, 14 байт]
     // курсор это наш индекс мы должны выполнять проверку если индекс курсора привышает индекс который есть в векторе = ошибка
 
+                let mut i = 1;
+      
+                while i <= count_const_pool {
 
+                    if cursor >= bin.len() {
+                         return Err(std::io::Error::new(std::io::ErrorKind::Other, "File error, damaged"));
+                    }
 
+                    let tag = bin[cursor];
 
-            for i in 0..count_const_pool { // тут у нас идет цикл от 0 до полученого количества байт 
-
-             if bin.len() <= cursor {
-
-                // Условно у нас в bin.len 10 элементов (от 0 до 9 по индексу ), а cursor = 10 это и есть наш указатель на индекс, в bin.len нет 10 элемента по этому будет ошибка!
-                return Err(std::io::Error::new(std::io::ErrorKind::Other, "File error, Cursor out of bounds"));
-             }
-
-
-// в 10 индексе хранятся индексы класса и индексы метода(5 байт), в 7 входят индексы  классов интерфейсов, и масивов строк и чисел, а в 1 строки
-
-
-
-                let tag = bin[cursor]; // тут tag это как наш экран мы передаем идекс в вектор и нам отдает его значение байтов 
-                match tag {
-                    10 => { // тэг 10 хранит 5 байт class index, name_and_type_index.
+                    match tag  {
+                        10 => { // тэг 10 хранит 5 байт class index, name_and_type_index.
                         if bin.len() < cursor + 5 {
                             return Err(std::io::Error::new(std::io::ErrorKind::Other, "File error, Cursor out of bounds"));
                         }
                         let class_index = u16::from_be_bytes([bin[cursor + 1], bin[cursor + 2]]);
-
                         let name_and_type_index = u16::from_be_bytes([bin[cursor + 3], bin[cursor + 4]]); 
 
-                       println!("[#{}] Methodref: class={}, name_and_type={}", i + 1, class_index, name_and_type_index); // i + 1 нужно чтоб индекс был 1 потому что 0 зарезервирован jvm
+                       println!("Methodref: class={}, name_and_type={}", class_index, name_and_type_index); 
+                       i += 1;
                        cursor += 5;
-
                     },
-                    7 => { // 7 это константа класса имеет размер 3 байта 
-                        if bin.len() < cursor + 3 {
+
+                     7 => {
+                         if bin.len() < cursor + 3 {
                             return Err(std::io::Error::new(std::io::ErrorKind::Other, "File error, Cursor out of bounds"));
                         }
                         let name_index = u16::from_be_bytes([bin[cursor + 1], bin[cursor + 2]]);
+                        i += 1;
                         cursor += 3;
-                        println!("[#{}] Class: name_index={}", i + 1, name_index);
-                    }
-                    1 => {
+                     },
+
+                     1 => {
                         if bin.len() < cursor + 3 {
                           return Err(std::io::Error::new(std::io::ErrorKind::Other, "File error, Cursor out of bounds"));
                         }
-                        let length = u16::from_be_bytes([bin[cursor + 1], bin[cursor + 2]]) as usize;
-                        println!("{}", length);
-
-                        if bin.len() < cursor + 3 + length {
+                           let length = u16::from_be_bytes([bin[cursor + 1], bin[cursor + 2]]) as usize;
+                            if bin.len() < cursor + 3 + length {
                             return Err(std::io::Error::new(std::io::ErrorKind::Other, "File error, Cursor out of bounds"));
-                        }
-                        let line = &bin[cursor + 3..cursor + 3 + length]; // тут мы делаем срез записываем байты по индексу от x до y 
-                        // берем ссылку на вектор с байтами и смотрим байты по индексу от x + 3 до x + 3 + y и записываем их в line
-                        //  после чего преобразуем в utf8
-                        let utf8_str = std::str::from_utf8(line);
+                        } 
+                      let line = &bin[cursor + 3..cursor + 3 + length];
+                                              
+                            let utf8_str = String::from_utf8_lossy(line);
+                            println!("[#{}] Utf8: {}", i, utf8_str);
+
+
+
                          cursor += 3 + length;
- 
-
-
-
-
-                         // продолжить тут !!!
-
-                    }
-
-
-                    _ => { 
-                        println!("Неизвестный тег {} на позиции {}", tag, cursor);
-                        break;
+                          i += 1;
                      }
+                     12 => {
+                        if bin.len() < cursor + 5 {
+                          return Err(std::io::Error::new(std::io::ErrorKind::Other, "File error, Cursor out of bounds"));
+                        }
+                       let name_index = u16::from_be_bytes([bin[cursor + 1], bin[cursor + 2]]);
+                        let descrptor_index = u16::from_be_bytes([bin[cursor + 3], bin[cursor + 4]]);
+                        cursor += 5;
+                        i+=1;
+
+                     }
+                     9 => {
+                         if bin.len() < cursor + 5 {
+                          return Err(std::io::Error::new(std::io::ErrorKind::Other, "File error, Cursor out of bounds"));
+                        }
+                        let class_index = u16::from_be_bytes([bin[cursor + 1], bin[cursor + 2]]);
+                        let name_and_type_index = u16::from_be_bytes([bin[cursor + 3], bin[cursor + 4]]);
+                        cursor += 5;
+                          i += 1;
+                     }
+                     8 => {
+                          if bin.len() < cursor + 3 {
+                          return Err(std::io::Error::new(std::io::ErrorKind::Other, "File error, Cursor out of bounds"));
+                        }
+                         let cstring_index = u16::from_be_bytes([bin[cursor + 1], bin[cursor + 2]]);
+                         i += 1;
+                         cursor += 3;
+                     }
+                     
+                     3 => {
+                          if bin.len() < cursor + 5 {
+                          return Err(std::io::Error::new(std::io::ErrorKind::Other, "File error, Cursor out of bounds"));
+                        }
+                        
+                        let integer = i32::from_be_bytes([
+                           bin[cursor + 1],
+                             bin[cursor + 2],
+                                 bin[cursor + 3],
+                                        bin[cursor + 4],
+                                ]); // берем 4 байта т.к int это 32 бита / 8 = 4 байта; 
+
+                        cursor += 5;
+                        i += 1;
+                     }
+                     4 => {
+                        if bin.len() < cursor + 5 {
+                          return Err(std::io::Error::new(std::io::ErrorKind::Other, "File error, Cursor out of bounds"));
+                        }
+
+                        let float = u32::from_be_bytes([
+                           bin[cursor + 1],
+                             bin[cursor + 2],
+                                 bin[cursor + 3],
+                                        bin[cursor + 4],
+                                        ]); // так же получаем 4 байта
+                        let finfloat = f32::from_bits(float); // интерпретируем 4 байта как число с плавающей точкой (f32)
+                            cursor += 5;
+                            i += 1;
+                     }
+                     
 
 
+                _ => {
+                     println!("Неизвестный тег {} на смещении {}", tag, cursor);
+                     break;
                 }
 
+             }
 
 
+       }
 
 
+  Ok(())
+}
 
-            }
-
-
-
-
-
-
-
-                Ok(())
+ 
             
-    }
