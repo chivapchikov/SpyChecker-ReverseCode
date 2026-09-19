@@ -1,6 +1,12 @@
+
 use std::{fs, u16};
+mod interface;
+
 
 fn main() -> std::io::Result<()> {
+
+
+    interface::app::run_gui().expect("Error GUI");
 
     //  прочтения файла и перевод в элементы вектора 
     let bin: Vec<u8> = fs::read("Main.class")?;
@@ -10,6 +16,8 @@ fn main() -> std::io::Result<()> {
     if bin.len() < 4 {
         return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "File small, size"));
     }
+  
+  
     
     // проверка магических байтов если они не валидны завершение  
     // протестировать !!!
@@ -27,16 +35,12 @@ fn main() -> std::io::Result<()> {
         return  Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "File small, i can not read pool const"));
     }
     
-                // проверка java
-         let major_version = u16::from_be_bytes([bin[6], bin[7]]);
-
-                let java = match major_version {
-                    52 => "Java 8",
-                    55 => "Java 11",
-                    61 => "Java 17",
-                    65 => "Java 21",
-                    _ => "Неизвестная версия",
-                };
+                 let raw_major = u16::from_be_bytes([bin[6], bin[7]]);
+                  let java_version = if raw_major >= 45 {
+                      format!("Java {}", raw_major - 44)
+                        } else {
+                           "Неизвестная версия".to_string()
+                        };
 
         
                 let count_const_pool = u16::from_be_bytes([bin[8], bin[9]]) - 1; // важные для работы файла данные  пул констанст
@@ -62,7 +66,7 @@ fn main() -> std::io::Result<()> {
 
                     match tag  {
                         10 => { // тэг 10 хранит 5 байт class index, name_and_type_index.
-                        if bin.len() < cursor + 5 {
+                        if bin.len() - cursor < 5  {
                             return Err(std::io::Error::new(std::io::ErrorKind::Other, "File error, Cursor out of bounds"));
                         }
                         let class_index = u16::from_be_bytes([bin[cursor + 1], bin[cursor + 2]]);
@@ -74,7 +78,7 @@ fn main() -> std::io::Result<()> {
                     },
 
                      7 => {
-                         if bin.len() < cursor + 3 {
+                          if bin.len() - cursor < 3 {
                             return Err(std::io::Error::new(std::io::ErrorKind::Other, "File error, Cursor out of bounds"));
                         }
                         let name_index = u16::from_be_bytes([bin[cursor + 1], bin[cursor + 2]]);
@@ -83,7 +87,7 @@ fn main() -> std::io::Result<()> {
                      },
 
                      1 => {
-                        if bin.len() < cursor + 3 {
+                         if bin.len() - cursor < 3 {
                           return Err(std::io::Error::new(std::io::ErrorKind::Other, "File error, Cursor out of bounds"));
                         }
                            let length = u16::from_be_bytes([bin[cursor + 1], bin[cursor + 2]]) as usize;
@@ -101,7 +105,7 @@ fn main() -> std::io::Result<()> {
                           i += 1;
                      }
                      12 => {
-                        if bin.len() < cursor + 5 {
+                         if bin.len() - cursor < 5 {
                           return Err(std::io::Error::new(std::io::ErrorKind::Other, "File error, Cursor out of bounds"));
                         }
                        let name_index = u16::from_be_bytes([bin[cursor + 1], bin[cursor + 2]]);
@@ -111,7 +115,7 @@ fn main() -> std::io::Result<()> {
 
                      }
                      9 => {
-                         if bin.len() < cursor + 5 {
+                          if bin.len() - cursor < 5 {
                           return Err(std::io::Error::new(std::io::ErrorKind::Other, "File error, Cursor out of bounds"));
                         }
                         let class_index = u16::from_be_bytes([bin[cursor + 1], bin[cursor + 2]]);
@@ -119,8 +123,8 @@ fn main() -> std::io::Result<()> {
                         cursor += 5;
                           i += 1;
                      }
-                     8 => {
-                          if bin.len() < cursor + 3 {
+                     8 => { // String
+                         if bin.len() - cursor < 3 {
                           return Err(std::io::Error::new(std::io::ErrorKind::Other, "File error, Cursor out of bounds"));
                         }
                          let cstring_index = u16::from_be_bytes([bin[cursor + 1], bin[cursor + 2]]);
@@ -128,8 +132,8 @@ fn main() -> std::io::Result<()> {
                          cursor += 3;
                      }
                      
-                     3 => {
-                          if bin.len() < cursor + 5 {
+                     3 => { // intger
+                          if bin.len() - cursor < 5 {
                           return Err(std::io::Error::new(std::io::ErrorKind::Other, "File error, Cursor out of bounds"));
                         }
                         
@@ -143,8 +147,8 @@ fn main() -> std::io::Result<()> {
                         cursor += 5;
                         i += 1;
                      }
-                     4 => {
-                        if bin.len() < cursor + 5 {
+                     4 => { // float
+                        if bin.len() - cursor < 5 {
                           return Err(std::io::Error::new(std::io::ErrorKind::Other, "File error, Cursor out of bounds"));
                         }
 
@@ -158,6 +162,138 @@ fn main() -> std::io::Result<()> {
                             cursor += 5;
                             i += 1;
                      }
+
+                     5 => { // long
+                      if bin.len() - cursor < 9 {
+                        return Err(std::io::Error::new(std::io::ErrorKind::Other, "File erorr, Cursor out of bounds"));
+                      }
+
+                      let long = i64::from_be_bytes([ 
+                        bin[cursor + 1],
+                         bin[cursor + 2 ],
+                          bin[cursor + 3 ],
+                           bin[cursor + 4 ],
+                            bin[cursor + 5 ],
+                             bin[cursor + 6 ],
+                              bin[cursor + 7 ],
+                               bin[cursor + 8 ]
+                         ]);
+                      i += 2;
+                      cursor += 9;
+                     } 
+
+              6 => { // double
+                 if bin.len() - cursor < 9 {
+                        return Err(std::io::Error::new(std::io::ErrorKind::Other, "File erorr, Cursor out of bounds"));
+                  }
+
+                  let double = u64::from_be_bytes([
+                    bin[cursor + 1],
+                     bin[cursor + 2],
+                      bin[cursor + 3],
+                       bin[cursor + 4],
+                        bin[cursor + 5],
+                         bin[cursor + 6],
+                          bin[cursor + 7],
+                           bin[cursor + 8],
+                    ]);
+                    let findouble = f64::from_bits(double);
+                  i+=2;
+                  cursor += 9;
+              }
+
+              11 => { // Интерфейсы
+                if bin.len() - cursor < 5 {
+                  return Err(std::io::Error::new(std::io::ErrorKind::Other, "File erorr, Cursor out of bounds"));
+                }
+                let class_index = u16::from_be_bytes([bin[cursor + 1], bin[cursor + 2]]);
+                let name_and_type_index = u16::from_be_bytes([bin[cursor + 3], bin[cursor + 4]]);
+                cursor += 5;
+                 i += 1; 
+              }
+
+              15 => { // MethodHandle
+
+                if bin.len() - cursor < 4 {
+                  return Err(std::io::Error::new(std::io::ErrorKind::Other, "File erorr, Cursor out of bounds"));
+                }
+
+                  let reference_kind = u8::from_be_bytes([bin[cursor + 1]]);
+                    let reference_index = u16::from_be_bytes([bin[cursor + 2], bin[cursor + 3]]);
+
+                cursor += 4;
+                i += 1;
+
+              }
+
+              16 => { // MethodType
+                if bin.len() - cursor < 3 {
+                  return Err(std::io::Error::new(std::io::ErrorKind::Other, "File erorr, Cursor out of bounds"));
+                }
+                
+                    let descriptor_index = u16::from_be_bytes([bin[cursor + 1], bin[cursor + 2]]);
+                
+                cursor += 3;
+                i+=1;
+
+              }
+
+              17 => { // Dynamic
+
+                  if bin.len() - cursor < 5 {
+                  return Err(std::io::Error::new(std::io::ErrorKind::Other, "File erorr, Cursor out of bounds"));
+                }
+
+                let bootstrap_attr_idx = u16::from_be_bytes([bin[cursor + 1], bin[cursor + 2]]);
+                let name_and_type_idx = u16::from_be_bytes([bin[cursor + 3], bin[cursor + 4]]);
+
+
+                 cursor += 5;
+                i+=1;
+                
+              }
+
+              18 => { // InvokeDynamic
+
+                if bin.len() - cursor < 5 {
+                  return Err(std::io::Error::new(std::io::ErrorKind::Other, "File erorr, Cursor out of bounds"));
+                }
+
+
+                 let bootstrap_attr_idx = u16::from_be_bytes([bin[cursor + 1], bin[cursor + 2]]);
+                let name_and_type_idx = u16::from_be_bytes([bin[cursor + 3], bin[cursor + 4]]);
+                 cursor += 5;
+                i+=1;
+
+
+              }
+
+              19 => { // Module
+
+                  if bin.len() - cursor < 3 {
+                  return Err(std::io::Error::new(std::io::ErrorKind::Other, "File erorr, Cursor out of bounds"));
+                }
+
+                     let name_index = u16::from_be_bytes([bin[cursor + 1], bin[cursor + 2]]);
+
+                 cursor += 3;
+                i+=1;
+              }
+
+              20 => { // Package
+
+                    if bin.len() - cursor < 3 {
+                  return Err(std::io::Error::new(std::io::ErrorKind::Other, "File erorr, Cursor out of bounds"));
+                }
+
+                     let name_index = u16::from_be_bytes([bin[cursor + 1], bin[cursor + 2]]);
+
+                 cursor += 3;
+                i+=1;
+
+
+              }
+
                      
 
 
@@ -170,6 +306,9 @@ fn main() -> std::io::Result<()> {
 
 
        }
+
+
+
 
 
   Ok(())
