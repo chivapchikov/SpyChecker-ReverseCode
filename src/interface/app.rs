@@ -2,6 +2,7 @@ use eframe::egui::{self, CentralPanel};
 use eframe::egui::{Color32, Frame};
 
 
+
 #[derive(Default)]
 pub struct App {
     // Здесь позже будут поля
